@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "total": 1,
+  "data": [
+    {
+      "id": "10250",
+      "user_id": "27332",
+      "activity_type": "task",
+      "activity_status": "Completed",
+      "project": "2",
+      "team": "68",
+      "task_title": "Upload playlist on campusradio",
+      "remark": "I was done my work.",
+      "current_task": "create playlist and upload on campusradio",
+      "time_spent": "18:00",
+      "created_date": "2024-01-29 13:19:42",
+      "updated_date": "0000-00-00 00:00:00",
+      "college": "SINHGAD INSTITUTE OF BUSINESS ADMINISTRATION AND RESEARCH",
+      "college_id": "1-4259355966",
+      "email": "meghakhetan6@gmail.com",
+      "mobile": "7972424886",
+      "uname": "Megha Khetan",
+      "lastname": null,
+      "fullName": null
+    }
+  ]
+}
