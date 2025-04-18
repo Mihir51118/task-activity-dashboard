@@ -1,8 +1,6 @@
 import streamlit as st
-st.title("🧪 Task Dashboard — LIVE UPDATE TEST ✅")
 import os
 import re
-import streamlit as st
 import pandas as pd
 import numpy as np
 import requests
@@ -14,14 +12,16 @@ from mailer import send_summary_email
 from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
 from mailer import send_summary_email  # ✅ REAL sender
-
-# Set page configuration
+# Set the page configuration FIRST
 st.set_page_config(
     page_title="Task Activity Dashboard",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
+
+# Now you can use other Streamlit commands
+st.title("🧪 Task Dashboard — LIVE UPDATE TEST ✅")
 
 # Define custom colors
 CUSTOM_COLORS = px.colors.qualitative.Plotly
