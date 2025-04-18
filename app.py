@@ -1,4 +1,5 @@
 import os
+import re
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -9,6 +10,8 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from mailer import send_summary_email
 from datetime import datetime, timedelta
+from apscheduler.schedulers.background import BackgroundScheduler
+from mailer import send_summary_email  # ✅ REAL sender
 
 # Set page configuration
 st.set_page_config(
@@ -438,9 +441,7 @@ st.download_button(
 st.markdown("---")
 st.markdown("Task Activity Dashboard | Created with Streamlit | Data source: StartupWorld API")
 
-# 1️⃣ Function to fetch and process data (dummy placeholders)
 def fetch_data(from_date, to_date):
-    # Replace with your actual fetch logic
     return [
         {"task": "Task A", "activity_status": "Completed", "time_spent_minutes": 90},
         {"task": "Task B", "activity_status": "Pending", "time_spent_minutes": 45},
@@ -449,14 +450,18 @@ def fetch_data(from_date, to_date):
 def process_data(data):
     return pd.DataFrame(data)
 
-# 2️⃣ Function to send email with attachment
-def send_summary_email(to, subject, html_body, attachment_path):
-    # Replace with your actual email logic
-    print(f"Sending email to {to} with subject: {subject}")
-    print(f"Attachment: {attachment_path}")
+# 1️⃣ Dummy fetch/process placeholders
+def fetch_data(from_date, to_date):
+    return [
+        {"task": "Task A", "activity_status": "Completed", "time_spent_minutes": 90},
+        {"task": "Task B", "activity_status": "Pending", "time_spent_minutes": 45},
+    ]
 
-# 3️⃣ Function to generate and send the email report
-def generate_email_report():
+def process_data(data):
+    return pd.DataFrame(data)
+
+# 2️⃣ Generate and send report
+def generate_email_report(recipients):
     from_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     to_date = datetime.now().strftime("%Y-%m-%d")
 
@@ -480,58 +485,76 @@ def generate_email_report():
     </ul>
     """
 
-    send_summary_email(
-        "choubisamihir@gmail.com",
-        subject,
-        html_body,
-        csv_path
-    )
+    send_summary_email(recipients, subject, html_body, csv_path)
     print("✅ Report email sent!")
 
-# 4️⃣ Load saved email time
-def load_email_time():
-    try:
-        with open("config/email_time.json", "r") as f:
-            time_data = json.load(f)
-            return datetime.now().replace(hour=time_data["hour"], minute=time_data["minute"], second=0, microsecond=0)
-    except FileNotFoundError:
-        return None
-
-# 5️⃣ Streamlit Button to Send Email Now (only if current time matches scheduled)
-if st.button("📤 Send Email Now"):
-    scheduled_time = load_email_time()
-    now = datetime.now().replace(second=0, microsecond=0)
-
-    if scheduled_time and now.time() == scheduled_time.time():
-        generate_email_report()
-        st.success("✅ Email sent!")
-    elif scheduled_time:
-        st.warning(f"⏱️ Not yet time! Scheduled for {scheduled_time.strftime('%H:%M')}, current time is {now.strftime('%H:%M')}")
-    else:
-        st.error("⚠️ Please set and save a scheduled time first.")
-
-# 6️⃣ Sidebar: Email Scheduling
-st.sidebar.markdown("### 📬 Email Schedule")
-email_time = st.sidebar.time_input(
-    "Select time to send daily report",
-    value=datetime.strptime("18:00", "%H:%M").time()
-)
-
+# 3️⃣ Config helpers
 def save_email_time(time_obj):
     os.makedirs("config", exist_ok=True)
     with open("config/email_time.json", "w") as f:
         json.dump({"hour": time_obj.hour, "minute": time_obj.minute}, f)
 
+def load_email_time():
+    try:
+        with open("config/email_time.json", "r") as f:
+            data = json.load(f)
+            return data.get("hour", 18), data.get("minute", 0)
+    except:
+        return 18, 0
+
+def get_saved_time_str():
+    hour, minute = load_email_time()
+    return f"{hour:02d}:{minute:02d}"
+
+def validate_emails(input_str):
+    emails = [e.strip() for e in input_str.split(",")]
+    valid_email_pattern = r"[^@]+@[^@]+\.[^@]+"
+    return [e for e in emails if re.match(valid_email_pattern, e)][:10]
+
+# 4️⃣ Streamlit UI
+st.sidebar.markdown("### 📬 Email Schedule")
+
+# Email input
+email_input = st.sidebar.text_area(
+    "Enter up to 10 recipient emails (comma separated):",
+    placeholder="example1@gmail.com, example2@gmail.com"
+)
+valid_recipients = validate_emails(email_input)
+
+# Time picker
+email_time = st.sidebar.time_input(
+    "Select time to send daily report",
+    value=datetime.strptime("18:00", "%H:%M").time()
+)
+
 if st.sidebar.button("💾 Save Email Time"):
     save_email_time(email_time)
     st.sidebar.success(f"Email time saved: {email_time.strftime('%H:%M')}")
 
-def get_saved_time():
-    try:
-        with open("config/email_time.json", "r") as f:
-            data = json.load(f)
-            return f"{data.get('hour', 18):02d}:{data.get('minute', 0):02d}"
-    except:
-        return "18:00"
+st.sidebar.markdown(f"⏱️ **Current Scheduled Time:** {get_saved_time_str()}")
 
-st.sidebar.markdown(f"⏱️ **Current Scheduled Time:** {get_saved_time()}")
+# 📤 Manual Send
+if st.button("📤 Send Email Now"):
+    if valid_recipients:
+        generate_email_report(valid_recipients)
+        st.success("✅ Email sent immediately!")
+    else:
+        st.error("⚠️ Please enter valid email addresses.")
+
+# 🕒 Auto Scheduler
+scheduler = BackgroundScheduler()
+
+def schedule_email():
+    if valid_recipients:
+        generate_email_report(valid_recipients)
+    else:
+        print("⚠️ No valid recipients to send email to.")
+
+def start_scheduled_job():
+    hour, minute = load_email_time()
+    scheduler.add_job(schedule_email, "cron", hour=hour, minute=minute, id="daily_email", replace_existing=True)
+    scheduler.start()
+    st.success(f"✅ Email will now be sent daily at {hour:02d}:{minute:02d}")
+
+if st.button("🕒 Start Scheduled Email"):
+    start_scheduled_job()

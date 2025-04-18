@@ -5,17 +5,18 @@ import os
 from email.message import EmailMessage
 from datetime import datetime
 
-def send_summary_email(to_email, subject, html_body, csv_path):
+# 📧 Send summary email to multiple recipients
+def send_summary_email(to_emails, subject, html_body, csv_path):
     EMAIL_ADDRESS = "choubisamihir@gmail.com"
-    EMAIL_PASSWORD = "yjwy ejle ugvf nxgj"  # App-specific password for Gmail
+    EMAIL_PASSWORD = "yjwy ejle ugvf nxgj"  # App‑specific Gmail password
 
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = EMAIL_ADDRESS
-    msg["To"] = to_email
+    msg["To"] = ", ".join(to_emails)  # Multiple recipients
 
-    # Fallback for clients that don't support HTML
-    msg.set_content("Your task report is attached. Please open the email in an HTML-supported email client.")
+    # Fallback text version
+    msg.set_content("Your task report is attached. Please open the email in an HTML‑supported email client.")
 
     # Add HTML body
     msg.add_alternative(html_body, subtype="html")
@@ -25,27 +26,33 @@ def send_summary_email(to_email, subject, html_body, csv_path):
         with open(csv_path, "rb") as f:
             file_data = f.read()
             file_name = os.path.basename(csv_path)
-            msg.add_attachment(file_data, maintype="application", subtype="octet-stream", filename=file_name)
+            msg.add_attachment(
+                file_data,
+                maintype="application",
+                subtype="octet-stream",
+                filename=file_name
+            )
     except FileNotFoundError:
         print(f"❌ CSV file not found: {csv_path}")
         return
 
-    # Send email
+    # Send the email
     try:
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
             smtp.send_message(msg)
-        print("✅ Email sent successfully!")
+        print(f"✅ Email sent to: {', '.join(to_emails)}")
     except Exception as e:
         print(f"❌ Failed to send email: {e}")
 
-def generate_email_report():
+# 📝 Generate and send daily task report
+def generate_email_report(recipients):
     try:
         today_str = datetime.now().strftime("%Y-%m-%d")
         json_path = "data/task_data.json"
         csv_path = f"task_{today_str}.csv"
 
-        # Load data
+        # Load task data
         with open(json_path, "r") as f:
             task_data = json.load(f)
 
@@ -63,13 +70,13 @@ def generate_email_report():
 
         print(f"✅ CSV generated: {csv_path}")
 
-        # Generate stats
+        # Generate summary stats
         total_tasks = len(task_data)
         completed_tasks = sum(1 for task in task_data if task.get("activity_status") == "Completed")
         total_minutes = sum(int(task.get("time_spent_minutes", 0)) for task in task_data)
         total_hours = round(total_minutes / 60, 2)
 
-        # HTML email body
+        # HTML Email Body
         html_body = f"""\
 <html>
   <body style="font-family:Arial,sans-serif; color:#333;">
@@ -101,9 +108,9 @@ def generate_email_report():
 
         subject = f"📊 Daily Task Report - {today_str}"
 
-        # Send email
+        # Send email to all recipients
         send_summary_email(
-            to_email="choubisamihir@gmail.com",
+            to_emails=recipients,
             subject=subject,
             html_body=html_body,
             csv_path=csv_path
@@ -112,6 +119,11 @@ def generate_email_report():
     except Exception as e:
         print(f"❌ Error generating report: {e}")
 
-# 🧪 Run manually (optional)
+# 🧪 Run with your specified email addresses
 if __name__ == "__main__":
-    generate_email_report()
+    recipients = [
+        "jaychoubisa90@gmail.com",
+        "choubisamihir@gmail.com",
+        "thanushthan124@gmail.com"
+    ]
+    generate_email_report(recipients)
