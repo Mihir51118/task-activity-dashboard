@@ -21,7 +21,7 @@ st.set_page_config(
 )
 
 # Now you can use other Streamlit commands
-st.title("🧪 Task Dashboard — LIVE ✅")
+st.title("Startup World")
 
 # Define custom colors
 CUSTOM_COLORS = px.colors.qualitative.Plotly
