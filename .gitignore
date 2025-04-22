@@ -5,3 +5,4 @@ config/
 *.pyc
 *.log
 *.DS_Store
+reportenv
