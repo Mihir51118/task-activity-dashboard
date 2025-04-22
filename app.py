@@ -8,10 +8,12 @@ import json
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from mailer import send_summary_email
-from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
-from mailer import send_summary_email  # ✅ REAL sender
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders # ✅ REAL sender
 # Set the page configuration FIRST
 st.set_page_config(
     page_title="Task Activity Dashboard",
@@ -462,7 +464,46 @@ def fetch_data(from_date, to_date):
 def process_data(data):
     return pd.DataFrame(data)
 
-# 2️⃣ Generate and send report
+# 2️⃣ Send the email
+def send_summary_email(recipients, subject, plain_body, html_body, attachment_path):
+    sender_email = "your_email@gmail.com"  # Replace with your email address
+    sender_password = "your_email_password"  # Replace with your email password or app password
+    
+    # Create MIME message
+    msg = MIMEMultipart()
+    msg['From'] = sender_email
+    msg['Subject'] = subject
+    
+    # Attach plain text body
+    msg.attach(MIMEText(plain_body, 'plain'))
+    
+    # Attach HTML body
+    msg.attach(MIMEText(html_body, 'html'))
+    
+    # Attach CSV file
+    try:
+        with open(attachment_path, 'rb') as attachment:
+            part = MIMEBase('application', 'octet-stream')
+            part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header('Content-Disposition', f'attachment; filename={attachment_path}')
+            msg.attach(part)
+    except Exception as e:
+        print(f"Error attaching file: {e}")
+    
+    # Send email to each recipient
+    try:
+        with smtplib.SMTP('smtp.gmail.com', 587) as server:
+            server.starttls()  # Secure connection
+            server.login(sender_email, sender_password)
+            for recipient in recipients:
+                msg['To'] = recipient
+                server.sendmail(sender_email, recipient, msg.as_string())
+                print(f"✅ Email sent to {recipient}")
+    except Exception as e:
+        print(f"Error sending email: {e}")
+
+# 3️⃣ Generate and send report
 def generate_email_report(recipients):
     from_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     to_date = datetime.now().strftime("%Y-%m-%d")
@@ -478,6 +519,18 @@ def generate_email_report(recipients):
     done = df[df['activity_status'] == 'Completed'].shape[0]
     hours = round(df['time_spent_minutes'].sum() / 60, 2)
 
+    # 1️⃣ Plain text fallback
+    plain_body = f"""\
+Daily Task Report — {from_date} to {to_date}
+
+Total Tasks:     {total}
+Completed Tasks: {done}
+Total Time Spent: {hours} hours
+
+See attached CSV for full details.
+"""
+
+    # 2️⃣ HTML body
     html_body = f"""
     <h2>📊 Daily Task Summary</h2>
     <ul>
@@ -487,10 +540,11 @@ def generate_email_report(recipients):
     </ul>
     """
 
-    send_summary_email(recipients, subject, html_body, csv_path)
+    # 3️⃣ Send the email
+    send_summary_email(recipients, subject, plain_body, html_body, csv_path)
     print("✅ Report email sent!")
 
-# 3️⃣ Config helpers
+# 4️⃣ Config helpers
 def save_email_time(time_obj):
     os.makedirs("config", exist_ok=True)
     with open("config/email_time.json", "w") as f:
@@ -513,7 +567,7 @@ def validate_emails(input_str):
     valid_email_pattern = r"[^@]+@[^@]+\.[^@]+"
     return [e for e in emails if re.match(valid_email_pattern, e)][:10]
 
-# 4️⃣ Streamlit UI
+# 5️⃣ Streamlit UI
 st.sidebar.markdown("### 📬 Email Schedule")
 
 # Email input
@@ -560,3 +614,4 @@ def start_scheduled_job():
 
 if st.button("🕒 Start Scheduled Email"):
     start_scheduled_job()
+    
