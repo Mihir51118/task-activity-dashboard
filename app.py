@@ -8,12 +8,10 @@ import json
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+from mailer import send_summary_email
+from datetime import datetime, timedelta
 from apscheduler.schedulers.background import BackgroundScheduler
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders # ✅ REAL sender
+from mailer import send_summary_email  # ✅ REAL sender
 # Set the page configuration FIRST
 st.set_page_config(
     page_title="Task Activity Dashboard",
@@ -325,67 +323,31 @@ with col2:
     else:
         st.info("Time spent or task title data not available")
 
-# Time analysis
-st.header("Time Activity Patterns")
-col1, col2 = st.columns(2)
 
-with col1:
-    if 'created_date' in filtered_df.columns and filtered_df['created_date'].notna().any():
-        filtered_df['hour'] = filtered_df['created_date'].dt.hour
-        hourly_tasks = filtered_df.groupby('hour').size().reset_index()
-        hourly_tasks.columns = ['Hour of Day', 'Number of Tasks']
-        
-        fig = px.bar(hourly_tasks, x='Hour of Day', y='Number of Tasks', 
-                     title='Task Creation by Hour of Day',
-                     color='Number of Tasks',
-                     color_continuous_scale=px.colors.sequential.Viridis)
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Created date data not available")
-
-with col2:
-    if 'created_date' in filtered_df.columns and filtered_df['created_date'].notna().any():
-        filtered_df['day'] = filtered_df['created_date'].dt.day_name()
-        day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        
-        daily_tasks = filtered_df.groupby('day').size().reset_index()
-        daily_tasks.columns = ['Day of Week', 'Number of Tasks']
-        daily_tasks['Day of Week'] = pd.Categorical(daily_tasks['Day of Week'], categories=day_order, ordered=True)
-        daily_tasks = daily_tasks.sort_values('Day of Week')
-        
-        fig = px.bar(daily_tasks, x='Day of Week', y='Number of Tasks', 
-                     title='Task Creation by Day of Week',
-                     color='Number of Tasks',
-                     color_continuous_scale=px.colors.sequential.Plasma)
-        fig.update_layout(height=400)
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Created date data not available")
 
 # Project analysis
-st.header("Project Performance")
+# st.header("Project Performance")
 
-if 'project' in filtered_df.columns:
-    project_counts = filtered_df.groupby('project').agg({
-        'id': 'count',
-        'time_spent_minutes': 'sum'
-    }).reset_index()
-    project_counts.columns = ['Project', 'Task Count', 'Total Minutes']
-    project_counts['Hours'] = round(project_counts['Total Minutes'] / 60, 2)
-    project_counts = project_counts.sort_values('Task Count', ascending=False)
+# if 'project' in filtered_df.columns:
+#     project_counts = filtered_df.groupby('project').agg({
+#         'id': 'count',
+#         'time_spent_minutes': 'sum'
+#     }).reset_index()
+#     project_counts.columns = ['Project', 'Task Count', 'Total Minutes']
+#     project_counts['Hours'] = round(project_counts['Total Minutes'] / 60, 2)
+#     project_counts = project_counts.sort_values('Task Count', ascending=False)
     
-    fig = px.scatter(project_counts, x='Task Count', y='Hours', 
-                     text='Project',
-                     size='Task Count',
-                     color='Hours',
-                     title='Projects by Task Count and Time Spent',
-                     color_continuous_scale=px.colors.sequential.Viridis)
-    fig.update_traces(textposition='top center')
-    fig.update_layout(height=600)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("Project data not available")
+#     fig = px.scatter(project_counts, x='Task Count', y='Hours', 
+#                      text='Project',
+#                      size='Task Count',
+#                      color='Hours',
+#                      title='Projects by Task Count and Time Spent',
+#                      color_continuous_scale=px.colors.sequential.Viridis)
+#     fig.update_traces(textposition='top center')
+#     fig.update_layout(height=600)
+#     st.plotly_chart(fig, use_container_width=True)
+# else:
+#     st.info("Project data not available")
 
 # Detailed task view
 st.header("Detailed Task View")
@@ -396,7 +358,7 @@ search_term = st.text_input("Search tasks by title or remark")
 # Filter by search term if provided
 if search_term:
     search_columns = []
-    for col in ['task_title', 'remark', 'current_task','uname','college']:
+    for col in ['task_title', 'remark', 'current_task','uname','college','email']:
         if col in filtered_df.columns:
             search_columns.append(col)
     
@@ -414,7 +376,7 @@ else:
 if not searched_df.empty:
     # Select relevant columns for display
     display_cols = []
-    for col in ['id', 'task_title', 'activity_status', 'remark', 'current_task', 'time_spent', 'created_date', 'college', 'uname']:
+    for col in ['id','email', 'task_title', 'activity_status', 'remark', 'current_task', 'time_spent', 'created_date', 'college', 'uname']:
         if col in searched_df.columns:
             display_cols.append(col)
     
@@ -464,75 +426,17 @@ def fetch_data(from_date, to_date):
 def process_data(data):
     return pd.DataFrame(data)
 
-# 2️⃣ Send the email
-def send_summary_email(recipients, subject, plain_body, html_body, attachment_path):
-    sender_email = "your_email@gmail.com"  # Replace with your email address
-    sender_password = "your_email_password"  # Replace with your email password or app password
-    
-    # Create MIME message
-    msg = MIMEMultipart()
-    msg['From'] = sender_email
-    msg['Subject'] = subject
-    
-    # Attach plain text body
-    msg.attach(MIMEText(plain_body, 'plain'))
-    
-    # Attach HTML body
-    msg.attach(MIMEText(html_body, 'html'))
-    
-    # Attach CSV file
-    try:
-        with open(attachment_path, 'rb') as attachment:
-            part = MIMEBase('application', 'octet-stream')
-            part.set_payload(attachment.read())
-            encoders.encode_base64(part)
-            part.add_header('Content-Disposition', f'attachment; filename={attachment_path}')
-            msg.attach(part)
-    except Exception as e:
-        print(f"Error attaching file: {e}")
-    
-    # Send email to each recipient
-    try:
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()  # Secure connection
-            server.login(sender_email, sender_password)
-            for recipient in recipients:
-                msg['To'] = recipient
-                server.sendmail(sender_email, recipient, msg.as_string())
-                print(f"✅ Email sent to {recipient}")
-    except Exception as e:
-        print(f"Error sending email: {e}")
+# 2️⃣ Generate and send report
+def generate_email_report(recipients, detailed_df, date_for_report):
+    csv_path = f"detailed_task_view_{date_for_report}.csv"
+    detailed_df.to_csv(csv_path, index=False)
+    subject = f"Startup World Report — {date_for_report}"
+    total = len(detailed_df)
+    done = detailed_df[detailed_df['activity_status'] == 'Completed'].shape[0] if 'activity_status' in detailed_df.columns else 0
+    hours = round(detailed_df['time_spent'].apply(lambda x: convert_time_to_minutes(x) if pd.notnull(x) else 0).sum() / 60, 2) if 'time_spent' in detailed_df.columns else 0
 
-# 3️⃣ Generate and send report
-def generate_email_report(recipients):
-    from_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    to_date = datetime.now().strftime("%Y-%m-%d")
-
-    data = fetch_data(from_date, to_date)
-    df = process_data(data) if data else pd.DataFrame()
-
-    csv_path = f"task_{from_date}_to_{to_date}.csv"
-    df.to_csv(csv_path, index=False)
-
-    subject = f"📅 Daily Task Report — {from_date} to {to_date}"
-    total = len(df)
-    done = df[df['activity_status'] == 'Completed'].shape[0]
-    hours = round(df['time_spent_minutes'].sum() / 60, 2)
-
-    # 1️⃣ Plain text fallback
-    plain_body = f"""\
-Daily Task Report — {from_date} to {to_date}
-
-Total Tasks:     {total}
-Completed Tasks: {done}
-Total Time Spent: {hours} hours
-
-See attached CSV for full details.
-"""
-
-    # 2️⃣ HTML body
     html_body = f"""
-    <h2>📊 Daily Task Summary</h2>
+    <h2>📊 Detailed Task View</h2>
     <ul>
       <li><b>Total Tasks:</b> {total}</li>
       <li><b>Completed Tasks:</b> {done}</li>
@@ -540,11 +444,14 @@ See attached CSV for full details.
     </ul>
     """
 
-    # 3️⃣ Send the email
+    plain_body = f"Task Report for {date_for_report}\nTotal Tasks: {total}\nCompleted: {done}\nTotal Time Spent: {hours} hours"
     send_summary_email(recipients, subject, plain_body, html_body, csv_path)
-    print("✅ Report email sent!")
 
-# 4️⃣ Config helpers
+   # send_summary_email(recipients, subject, html_body, csv_path)
+    print("✅ Detailed Task View report email sent!")
+
+
+# 3️⃣ Config helpers
 def save_email_time(time_obj):
     os.makedirs("config", exist_ok=True)
     with open("config/email_time.json", "w") as f:
@@ -567,7 +474,7 @@ def validate_emails(input_str):
     valid_email_pattern = r"[^@]+@[^@]+\.[^@]+"
     return [e for e in emails if re.match(valid_email_pattern, e)][:10]
 
-# 5️⃣ Streamlit UI
+# 4️⃣ Streamlit UI
 st.sidebar.markdown("### 📬 Email Schedule")
 
 # Email input
@@ -592,7 +499,12 @@ st.sidebar.markdown(f"⏱️ **Current Scheduled Time:** {get_saved_time_str()}"
 # 📤 Manual Send
 if st.button("📤 Send Email Now"):
     if valid_recipients:
-        generate_email_report(valid_recipients)
+        date_for_report = to_date_str
+        if 'display_cols' in locals() and display_cols:
+            detailed_df = searched_df[display_cols]
+        else:
+            detailed_df = searched_df
+        generate_email_report(valid_recipients, detailed_df, date_for_report)
         st.success("✅ Email sent immediately!")
     else:
         st.error("⚠️ Please enter valid email addresses.")

@@ -37,7 +37,7 @@ def send_daily_report():
 
     # 3️⃣ Generate & send
     print(f"⏰ Sending daily report to: {', '.join(recipients)}")
-    generate_email_report(recipients
+    generate_email_report(recipients)
 
 # ─── Scheduler Setup ────────────────────────────────────────────────────────
 
