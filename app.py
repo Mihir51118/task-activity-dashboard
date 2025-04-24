@@ -444,10 +444,8 @@ def generate_email_report(recipients, detailed_df, date_for_report):
     </ul>
     """
 
-    plain_body = f"Task Report for {date_for_report}\nTotal Tasks: {total}\nCompleted: {done}\nTotal Time Spent: {hours} hours"
+    plain_body = f"Detailed Task View Report for {date_for_report}\nTotal Tasks: {total}\nCompleted Tasks: {done}\nTotal Time Spent: {hours} hours"
     send_summary_email(recipients, subject, plain_body, html_body, csv_path)
-
-   # send_summary_email(recipients, subject, html_body, csv_path)
     print("✅ Detailed Task View report email sent!")
 
 
@@ -477,17 +475,43 @@ def validate_emails(input_str):
 # 4️⃣ Streamlit UI
 st.sidebar.markdown("### 📬 Email Schedule")
 
-# Email input
+# --- Persistent Recipients Management ---
+import json
+RECIPIENTS_PATH = "config/recipients.json"
+os.makedirs("config", exist_ok=True)
+
+# Load recipients from file
+if os.path.exists(RECIPIENTS_PATH):
+    with open(RECIPIENTS_PATH, "r") as f:
+        try:
+            recipients_list = json.load(f)
+        except Exception:
+            recipients_list = []
+else:
+    recipients_list = []
+
+recipients_str = ", ".join(recipients_list)
 email_input = st.sidebar.text_area(
-    "Enter up to 10 recipient emails (comma separated):",
+    "Edit recipient emails (comma separated, max 10):",
+    value=recipients_str,
     placeholder="example1@gmail.com, example2@gmail.com"
 )
-valid_recipients = validate_emails(email_input)
+
+if st.sidebar.button("💾 Save Recipients"):
+    updated_recipients = validate_emails(email_input)
+    with open(RECIPIENTS_PATH, "w") as f:
+        json.dump(updated_recipients, f)
+    st.sidebar.success("Recipients saved!")
+    recipients_list = updated_recipients
+
+valid_recipients = recipients_list
 
 # Time picker
+from datetime import datetime, timedelta
 email_time = st.sidebar.time_input(
     "Select time to send daily report",
-    value=datetime.strptime("18:00", "%H:%M").time()
+    value=datetime.strptime("18:00", "%H:%M").time(),
+    step=timedelta(minutes=1)
 )
 
 if st.sidebar.button("💾 Save Email Time"):
@@ -514,7 +538,17 @@ scheduler = BackgroundScheduler()
 
 def schedule_email():
     if valid_recipients:
-        generate_email_report(valid_recipients)
+        # Use the same date range and filtering as the dashboard (today's data)
+        from_date_str = from_date.strftime("%Y-%m-%d")
+        to_date_str = to_date.strftime("%Y-%m-%d")
+
+        # Use the same DataFrame and columns as the dashboard CSV download
+        if 'display_cols' in locals() and display_cols:
+            detailed_df = searched_df[display_cols]
+        else:
+            detailed_df = searched_df
+        date_for_report = to_date_str
+        generate_email_report(valid_recipients, detailed_df, date_for_report)
     else:
         print("⚠️ No valid recipients to send email to.")
 
@@ -526,4 +560,3 @@ def start_scheduled_job():
 
 if st.button("🕒 Start Scheduled Email"):
     start_scheduled_job()
-    
