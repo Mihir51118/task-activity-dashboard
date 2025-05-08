@@ -4,10 +4,13 @@ import smtplib
 import os
 from email.message import EmailMessage
 from datetime import datetime
+from dotenv import load_dotenv
 
-# Gmail credentials — App Password required
-EMAIL_ADDRESS  = "choubisamihir@gmail.com"
-EMAIL_PASSWORD = "yjwy ejle ugvf nxgj"
+# look for a .env file in the current directory (or parent directories)
+load_dotenv()  
+
+EMAIL_ADDRESS  = os.getenv("EMAIL_ADDRESS")
+EMAIL_PASSWORD = os.getenv("EMAIL_PASSWORD")
 
 def send_summary_email(to_emails, subject, plain_body, html_body, csv_path):
     msg = EmailMessage()
